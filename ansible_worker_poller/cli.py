@@ -3,7 +3,7 @@
 
 """
 Usage:
-    ansible_worker_poller [options] <url>
+    ansible_worker_poller [options] <url> <worker_id>
 
 Options:
     -h, --help       Show this page
@@ -36,7 +36,7 @@ def main(args=None):
         logging.basicConfig(level=logging.WARNING)
 
     worker = AnsibleWorker()
-    wc = PollerChannel(parsed_args['<url>'], parsed_args['--wait_time'], worker.queue)
+    wc = PollerChannel(parsed_args['<url>'], parsed_args['<worker_id>'], float(parsed_args['--wait_time']), worker.queue)
     worker.controller.outboxes['output'] = wc
     gevent.joinall([wc.thread, worker.thread])
     return 0

@@ -1,0 +1,42 @@
+diagram_uuid: 64f708cc-71ce-45c0-8efe-376d43e904fb
+name: Worker
+states:
+- id: 0
+  label: Completed
+  x: 899
+  y: 406
+- id: 1
+  label: Errored
+  x: 258
+  y: 433
+- id: 2
+  label: Running
+  x: 608
+  y: 564
+- id: 3
+  label: Start
+  x: 603
+  y: 62
+- id: 4
+  label: Waiting
+  x: 605
+  y: 305
+transitions:
+- from_state: Completed
+  label: start
+  to_state: Waiting
+- from_state: Errored
+  label: start
+  to_state: Waiting
+- from_state: Running
+  label: onComplete
+  to_state: Completed
+- from_state: Running
+  label: onError
+  to_state: Errored
+- from_state: Start
+  label: start
+  to_state: Waiting
+- from_state: Waiting
+  label: onDeploy
+  to_state: Running

@@ -1,56 +1,114 @@
 import requests
-import json
+import yaml
 import gevent
-import traceback
 from pprint import pprint
-from .messages import serialize, Deploy, Cancel
+from .messages import Deploy
+from . import messages
 
 
 class PollerChannel(object):
 
-    def __init__(self, address, wait_time, outbox):
+    def __init__(self, address, worker_id, wait_time, outbox):
         self.address = address
-        self.start_socket_thread()
-        self.outbox = outbox
+        self.worker_id = worker_id
         self.poll_wait_time = wait_time
+        self.outbox = outbox
+        self.start_socket_thread()
+        self.run_data = dict()
+
+    def get_api_url(self, name, **kwargs):
+        if kwargs:
+            return '{0}/insights_integration/api/{1}/?{2}'.format(self.address, name, "&".join(["=".join([str(y) for y in x]) for x in kwargs.items()]))
+        else:
+            return '{0}/insights_integration/api/{1}/'.format(self.address, name)
 
     def start_socket_thread(self):
-        print(self.address)
         self.thread = gevent.spawn(self.run_forever)
 
     def run_forever(self):
         while True:
+            self.poll_worker_queue()
             gevent.sleep(self.poll_wait_time)
 
-    def put(self, message):
-        try:
-            self.socket.send(json.dumps(serialize(message)))
-        except Exception as e:
-            print(e)
-            print(traceback.format_exc())
-            self.thread.kill()
-            self.start_socket_thread()
+    def delete_api_object(self, object_type, pk):
+        response = requests.delete(self.get_api_url(object_type) + str(pk))
+        if not response.status_code == 204:
+            raise Exception("Not deleted")
 
-    def on_open(self):
-        print('PollerChannel on_open')
+    def post_api_object(self, object_type, data):
+        response = requests.post(self.get_api_url(object_type), data=data)
+        print(response.text)
+        return response.json()
+
+    def get_api_object(self, object_type, **kwargs):
+        object_list = self.get_api_list(object_type, **kwargs)
+        if len(object_list) == 1:
+            return object_list[0]
+        elif len(object_list) == 0:
+            raise Exception("{0} object not found for {1}".format(object_type, repr(kwargs)))
+        else:
+            raise Exception("More than one {0} object found for {1}".format(object_type, repr(kwargs)))
+
+    def get_api_list(self, object_type, **kwargs):
+        response = requests.get(self.get_api_url(object_type, **kwargs))
+        if response.status_code == requests.codes.ok:
+            return response.json()
+        else:
+            raise Exception(response.text)
+
+    def poll_worker_queue(self):
+        items = self.get_api_list('workerqueue', worker_id=self.worker_id)
+        for item in items:
+            playbook_run = self.get_api_object('playbookrun', playbook_run_id=item['playbook_run'])
+            key = self.get_api_object('key', key_id=playbook_run['key'])
+            playbook = self.get_api_object('playbook', playbook_id=playbook_run['playbook'])
+            hosts = self.get_api_list('host', inventory_id=playbook_run['inventory'])
+
+            host_vars = {x['name']: yaml.load(x['host_vars']) for x in hosts}
+
+            self.run_data[playbook_run['playbook_run_id']] = dict(hosts={x['name']: x['host_id'] for x in hosts},
+                                                                  playbook_run=playbook_run['playbook_run_id'])
+
+            inventory_yaml = yaml.dump(dict(all=dict(hosts={x['name']: host_vars[x['name']] for x in hosts})), default_flow_style=False)
+            self.outbox.put(Deploy(playbook_run['playbook_run_id'],
+                                   dict(text='doit',
+                                        inventory=inventory_yaml,
+                                        playbook=yaml.load(playbook['contents']),
+                                        key=key['value'])))
+            self.delete_api_object('workerqueue', item['worker_queue_id'])
+
+    def put(self, message):
+        if isinstance(message, messages.RunnerMessage):
+            self.onRunnerMessage(message)
+        elif isinstance(message, messages.RunnerStdout):
+            self.onRunnerStdout(message)
+
+    def onRunnerMessage(self, message):
+        pprint(message.data['event'])
+        handler = getattr(self, "on_" + message.data.get('event', None), None)
+        if handler:
+            handler(message)
+
+    def onRunnerStdout(self, message):
         pass
 
-    def on_message(self, message):
-        print('PollerChannel on_message')
-        message = json.loads(message)
-        pprint(message)
-        if message[0] == "deploy":
-            self.outbox.put(Deploy(message[1]))
-        elif message[0] == "cancel":
-            self.outbox.put(Cancel())
+    def on_playbook_on_stats(self, message):
+        pass
 
-    def on_close(self):
-        print('PollerChannel on_close')
-        self.thread.kill()
+    def on_runner_on_ok(self, message):
+        pprint(message.data)
+        pprint(self.run_data[message.id])
+        taskresult = self.post_api_object('taskresult', dict(status='ok',
+                                                             name=message.data['event_data']['task'],
+                                                             host=self.run_data[message.id]['hosts'][message.data['event_data']['host']]))
+        self.post_api_object('taskresultplaybookrun', dict(task_result=taskresult['task_result_id'],
+                                                           playbook_run=self.run_data[message.id]['playbook_run']))
 
-    def on_error(self, error):
-        print('PollerChannel on_error', error)
-        try:
-            self.on_close()
-        finally:
-            self.start_socket_thread()
+    def on_playbook_on_task_start(self, message):
+        pass
+
+    def on_playbook_on_start(self, message):
+        pass
+
+    def on_playbook_on_play_start(self, message):
+        pass

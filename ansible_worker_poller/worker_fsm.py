@@ -36,6 +36,7 @@ class _Waiting(State):
     def onDeploy(self, controller, message_type, message):
 
         controller.changeState(Running)
+        controller.context.run_id = message.id
         controller.context.deploy(message.data)
 
     def onCancel(self, controller, message_type, message):
@@ -103,7 +104,7 @@ class _Cancelled(State):
     @transitions('Waiting')
     def start(self, controller):
 
-        controller.outboxes['output'].put(messages.RunnerCancelled())
+        controller.outboxes['output'].put(messages.RunnerCancelled(controller.context.run_id))
         controller.changeState(Waiting)
 
 

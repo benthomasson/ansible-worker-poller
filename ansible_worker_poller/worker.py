@@ -44,6 +44,7 @@ class AnsibleWorker(object):
         self.thread = gevent.spawn(self.controller.receive_messages)
         self.temp_dir = None
         self.cancel_requested = False
+        self.run_id = None
 
     def trace_order_seq(self):
         return next(self.counter)
@@ -65,7 +66,7 @@ class AnsibleWorker(object):
     def add_inventory(self, inventory):
         print("add_inventory")
         with open(os.path.join(self.temp_dir, 'inventory'), 'w') as f:
-            f.write("\n".join(inventory.splitlines()[1:]))
+            f.write("\n".join(inventory.splitlines()))
 
     def add_keys(self, key):
         print("add_keys")
@@ -91,17 +92,15 @@ class AnsibleWorker(object):
                                          event_handler=self.runner_process_message)
 
     def runner_process_message(self, data):
-        pprint(data)
-        self.controller.outboxes['output'].put(messages.RunnerStdout(data.get('stdout', '')))
-        self.controller.outboxes['output'].put(messages.RunnerMessage(data))
+        self.controller.outboxes['output'].put(messages.RunnerStdout(self.run_id, data.get('stdout', '')))
+        self.controller.outboxes['output'].put(messages.RunnerMessage(self.run_id, data))
 
     def cancel_callback(self):
         return self.cancel_requested
 
     def finished_callback(self, runner):
         logger.info('called')
-        pprint(runner)
-        self.queue.put(messages.Complete())
+        self.queue.put(messages.Complete(self.run_id))
 
     def top_level_tasks(self, playbook):
         tasks = playbook[0].get('tasks', [])

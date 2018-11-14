@@ -1,9 +1,10 @@
 import requests
 import yaml
 import gevent
-from pprint import pprint
 from .messages import Deploy
 from . import messages
+from itertools import count
+from pprint import pprint
 
 
 class PollerChannel(object):
@@ -15,6 +16,7 @@ class PollerChannel(object):
         self.outbox = outbox
         self.start_socket_thread()
         self.run_data = dict()
+        self.log_counter = count(0, 1)
 
     def get_api_url(self, name, **kwargs):
         if kwargs:
@@ -39,6 +41,19 @@ class PollerChannel(object):
         response = requests.post(self.get_api_url(object_type), data=data)
         print(response.text)
         return response.json()
+
+    def put_api_object(self, object_type, pk, data):
+        response = requests.put("{0}{1}/".format(self.get_api_url(object_type), pk), data=data)
+        print(response.text)
+        return response.json()
+
+    def patch_api_object(self, object_type, pk, data):
+        print("{0}{1}/".format(self.get_api_url(object_type), pk))
+        pprint(data)
+        response = requests.patch("{0}{1}/".format(self.get_api_url(object_type), pk), data=data)
+        print(response.text)
+        return response.json()
+
 
     def get_api_object(self, object_type, **kwargs):
         object_list = self.get_api_list(object_type, **kwargs)
@@ -84,20 +99,16 @@ class PollerChannel(object):
             self.onRunnerStdout(message)
 
     def onRunnerMessage(self, message):
-        pprint(message.data['event'])
         handler = getattr(self, "on_" + message.data.get('event', None), None)
         if handler:
             handler(message)
 
     def onRunnerStdout(self, message):
-        pass
-
-    def on_playbook_on_stats(self, message):
-        pass
+        self.post_api_object('playbookrunlog', dict(playbook_run=self.run_data[message.id]['playbook_run'],
+                                                    order=next(self.log_counter),
+                                                    value=message.data))
 
     def on_runner_on_ok(self, message):
-        pprint(message.data)
-        pprint(self.run_data[message.id])
         taskresult = self.post_api_object('taskresult', dict(status='ok',
                                                              name=message.data['event_data']['task'],
                                                              host=self.run_data[message.id]['hosts'][message.data['event_data']['host']]))
@@ -105,10 +116,15 @@ class PollerChannel(object):
                                                            playbook_run=self.run_data[message.id]['playbook_run']))
 
     def on_playbook_on_task_start(self, message):
-        pass
+        pprint(["playbook_on_task_start" , message.data])
 
     def on_playbook_on_start(self, message):
-        pass
+        pprint(["playbook_on_start" , message.data])
+        self.patch_api_object('playbookrun', self.run_data[message.id]['playbook_run'], dict(status="started"))
 
     def on_playbook_on_play_start(self, message):
-        pass
+        pprint(["playbook_on_play_start" , message.data])
+
+    def on_playbook_on_stats(self, message):
+        pprint(["playbook_on_stats" , message.data])
+        self.patch_api_object('playbookrun', self.run_data[message.id]['playbook_run'], dict(status="completed"))

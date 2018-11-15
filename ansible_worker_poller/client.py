@@ -120,6 +120,20 @@ class PollerChannel(object):
         self.post_api_object('taskresultplaybookrun', dict(task_result=taskresult['task_result_id'],
                                                            playbook_run=self.run_data[message.id]['playbook_run']))
 
+    def on_runner_on_unreachable(self, message):
+        taskresult = self.post_api_object('taskresult', dict(status='unreachable',
+                                                             name=message.data['event_data']['task'],
+                                                             host=self.run_data[message.id]['hosts'][message.data['event_data']['host']]))
+        self.post_api_object('taskresultplaybookrun', dict(task_result=taskresult['task_result_id'],
+                                                           playbook_run=self.run_data[message.id]['playbook_run']))
+    def on_runner_on_failed(self, message):
+        taskresult = self.post_api_object('taskresult', dict(status='failed',
+                                                             name=message.data['event_data']['task'],
+                                                             host=self.run_data[message.id]['hosts'][message.data['event_data']['host']]))
+        self.post_api_object('taskresultplaybookrun', dict(task_result=taskresult['task_result_id'],
+                                                           playbook_run=self.run_data[message.id]['playbook_run']))
+
+
     def on_playbook_on_task_start(self, message):
         pprint(["playbook_on_task_start" , message.data])
 

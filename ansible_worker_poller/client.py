@@ -5,6 +5,9 @@ from .messages import Deploy
 from . import messages
 from itertools import count
 from pprint import pprint
+import re
+
+ansi_escape = re.compile(r'(\x9B|\x1B\[)[0-?]*[ -/]*[@-~]')
 
 
 class PollerChannel(object):
@@ -104,9 +107,11 @@ class PollerChannel(object):
             handler(message)
 
     def onRunnerStdout(self, message):
+        data = message.data
+        data = ansi_escape.sub('', data)
         self.post_api_object('playbookrunlog', dict(playbook_run=self.run_data[message.id]['playbook_run'],
                                                     order=next(self.log_counter),
-                                                    value=message.data))
+                                                    value=data))
 
     def on_runner_on_ok(self, message):
         taskresult = self.post_api_object('taskresult', dict(status='ok',

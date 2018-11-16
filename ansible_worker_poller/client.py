@@ -4,7 +4,6 @@ import gevent
 from .messages import Deploy
 from . import messages
 from itertools import count
-from pprint import pprint
 import re
 
 ansi_escape = re.compile(r'(\x9B|\x1B\[)[0-?]*[ -/]*[@-~]')
@@ -42,19 +41,14 @@ class PollerChannel(object):
 
     def post_api_object(self, object_type, data):
         response = requests.post(self.get_api_url(object_type), data=data)
-        print(response.text)
         return response.json()
 
     def put_api_object(self, object_type, pk, data):
         response = requests.put("{0}{1}/".format(self.get_api_url(object_type), pk), data=data)
-        print(response.text)
         return response.json()
 
     def patch_api_object(self, object_type, pk, data):
-        print("{0}{1}/".format(self.get_api_url(object_type), pk))
-        pprint(data)
         response = requests.patch("{0}{1}/".format(self.get_api_url(object_type), pk), data=data)
-        print(response.text)
         return response.json()
 
 
@@ -135,15 +129,13 @@ class PollerChannel(object):
 
 
     def on_playbook_on_task_start(self, message):
-        pprint(["playbook_on_task_start" , message.data])
+        pass
 
     def on_playbook_on_start(self, message):
-        pprint(["playbook_on_start" , message.data])
         self.patch_api_object('playbookrun', self.run_data[message.id]['playbook_run'], dict(status="started"))
 
     def on_playbook_on_play_start(self, message):
-        pprint(["playbook_on_play_start" , message.data])
+        pass
 
     def on_playbook_on_stats(self, message):
-        pprint(["playbook_on_stats" , message.data])
         self.patch_api_object('playbookrun', self.run_data[message.id]['playbook_run'], dict(status="completed"))

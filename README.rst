@@ -14,8 +14,6 @@ Ansible Worker Poller
         :alt: Documentation Status
 
 
-
-
 Ansible Runner with REST API polling
 
 
@@ -26,7 +24,22 @@ Ansible Runner with REST API polling
 Features
 --------
 
-* TODO
+* Ansible runner side of the Insights Ansible Runner POC. More information here: https://github.com/benthomasson/insights_ansible_runner_poc
+* Polls a task queue for a ansible playbook to run
+
+
+Usage
+-----
+
+	Usage:
+		ansible_worker_poller [options] <url> <worker_id>
+
+	Options:
+		-h, --help          Show this page
+		--debug             Show debug logging
+		--verbose           Show verbose logging
+		--wait_time=<t>     Wait time between polling server [default: 60].
+
 
 Credits
 -------

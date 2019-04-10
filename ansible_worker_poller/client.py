@@ -92,7 +92,7 @@ class PollerChannel(object):
                                    dict(text='doit',
                                         inventory=inventory_yaml,
                                         playbook=yaml.load(playbook['contents']),
-                                        key=key])))
+                                        key=key)))
             self.delete_api_object('workerqueue', item['worker_queue_id'])
 
     def put(self, message):

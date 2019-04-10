@@ -5,6 +5,7 @@ from .messages import Deploy
 from . import messages
 from itertools import count
 import re
+import traceback
 
 ansi_escape = re.compile(r'(\x9B|\x1B\[)[0-?]*[ -/]*[@-~]')
 
@@ -36,6 +37,7 @@ class PollerChannel(object):
                 self.poll_worker_queue()
             except BaseException as e:
                 print(e)
+                print(traceback.format_exc())
             gevent.sleep(self.poll_wait_time)
 
     def delete_api_object(self, object_type, pk):
@@ -54,7 +56,6 @@ class PollerChannel(object):
     def patch_api_object(self, object_type, pk, data):
         response = requests.patch("{0}{1}/".format(self.get_api_url(object_type), pk), data=data)
         return response.json()
-
 
     def get_api_object(self, object_type, **kwargs):
         object_list = self.get_api_list(object_type, **kwargs)
@@ -125,13 +126,13 @@ class PollerChannel(object):
                                                              host=self.run_data[message.id]['hosts'][message.data['event_data']['host']]))
         self.post_api_object('taskresultplaybookrun', dict(task_result=taskresult['task_result_id'],
                                                            playbook_run=self.run_data[message.id]['playbook_run']))
+
     def on_runner_on_failed(self, message):
         taskresult = self.post_api_object('taskresult', dict(status='failed',
                                                              name=message.data['event_data']['task'],
                                                              host=self.run_data[message.id]['hosts'][message.data['event_data']['host']]))
         self.post_api_object('taskresultplaybookrun', dict(task_result=taskresult['task_result_id'],
                                                            playbook_run=self.run_data[message.id]['playbook_run']))
-
 
     def on_playbook_on_task_start(self, message):
         pass

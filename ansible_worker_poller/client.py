@@ -11,7 +11,7 @@ ansi_escape = re.compile(r'(\x9B|\x1B\[)[0-?]*[ -/]*[@-~]')
 
 class PollerChannel(object):
 
-    def __init__(self, address, worker_id, wait_time, outbox):
+    def __init__(self, address, worker_id, wait_time, outbox, keyfile):
         self.address = address
         self.worker_id = worker_id
         self.poll_wait_time = wait_time
@@ -19,6 +19,7 @@ class PollerChannel(object):
         self.start_socket_thread()
         self.run_data = dict()
         self.log_counter = count(0, 1)
+        self.keyfile = keyfile
 
     def get_api_url(self, name, **kwargs):
         if kwargs:
@@ -31,7 +32,10 @@ class PollerChannel(object):
 
     def run_forever(self):
         while True:
-            self.poll_worker_queue()
+            try:
+                self.poll_worker_queue()
+            except BaseException as e:
+                print(e)
             gevent.sleep(self.poll_wait_time)
 
     def delete_api_object(self, object_type, pk):
@@ -72,7 +76,8 @@ class PollerChannel(object):
         items = self.get_api_list('workerqueue', worker_id=self.worker_id)
         for item in items:
             playbook_run = self.get_api_object('playbookrun', playbook_run_id=item['playbook_run'])
-            key = self.get_api_object('key', key_id=playbook_run['key'])
+            with open(self.keyfile) as f:
+                key = f.read()
             playbook = self.get_api_object('playbook', playbook_id=playbook_run['playbook'])
             hosts = self.get_api_list('host', inventory_id=playbook_run['inventory'])
 

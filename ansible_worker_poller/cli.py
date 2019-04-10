@@ -10,6 +10,7 @@ Options:
     --debug          Show debug logging
     --verbose        Show verbose logging
     --wait_time=<t>  Wait time between polling server [default: 60].
+    --key-file=<k>   ssh key file
 """
 from gevent import monkey
 monkey.patch_all(thread=False)
@@ -36,7 +37,11 @@ def main(args=None):
         logging.basicConfig(level=logging.WARNING)
 
     worker = AnsibleWorker()
-    wc = PollerChannel(parsed_args['<url>'], parsed_args['<worker_id>'], float(parsed_args['--wait_time']), worker.queue)
+    wc = PollerChannel(parsed_args['<url>'],
+                       parsed_args['<worker_id>'],
+                       float(parsed_args['--wait_time']),
+                       worker.queue,
+                       parsed_args['--key-file'])
     worker.controller.outboxes['output'] = wc
     gevent.joinall([wc.thread, worker.thread])
     return 0
